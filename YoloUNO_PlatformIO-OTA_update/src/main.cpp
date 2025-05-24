@@ -51,7 +51,14 @@ void setup() {
   if (digitalRead(AP_MODE_PIN) == LOW) {
     setupAP();
   } else {
+    // Initialize WiFi and check for connection
     InitWiFi();
+    
+    // If WiFi connection failed, start AP mode
+    if (!wifiConnected) {
+      Serial.println("Initial WiFi connection failed. Starting AP Mode...");
+      setupAP();
+    }
   }
   
   // Tạo tất cả các task RTOS

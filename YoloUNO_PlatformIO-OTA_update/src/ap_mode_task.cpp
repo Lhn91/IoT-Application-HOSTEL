@@ -1,6 +1,8 @@
 #include "ap_mode_task.h"
 #include "wifi_task.h"
 #include <EEPROM.h>
+#include "main_constants.h"
+#include <Ticker.h>
 
 // AP Mode configuration
 const char AP_SSID[] = "ESP32_Config";
@@ -10,6 +12,14 @@ const uint16_t WEB_PORT = 80;
 DNSServer dnsServer;
 WebServer webServer(WEB_PORT);
 bool apMode = false;
+Ticker ledTicker; // For blinking LED in AP mode
+
+// LED blink function for AP mode
+void blinkLED() {
+  static bool ledState = false;
+  ledState = !ledState;
+  digitalWrite(LED_PIN, ledState);
+}
 
 // EEPROM configuration constants are now in main_constants.cpp
 // const int SSID_ADDR = 0;
@@ -99,6 +109,10 @@ void handleSave() {
 
 void setupAP() {
   Serial.println("\n\n========== STARTING AP MODE ==========");
+  
+  // Start blinking LED to indicate AP mode
+  ledTicker.attach_ms(500, blinkLED); // Blink every 500ms
+  
   Serial.println("Disconnecting from existing WiFi connection...");
   WiFi.disconnect();
   
@@ -141,6 +155,11 @@ void setupAP() {
 
 void stopAP() {
   Serial.println("\n========== STOPPING AP MODE ==========");
+  
+  // Stop LED blinking
+  ledTicker.detach();
+  digitalWrite(LED_PIN, LOW); // Turn off LED
+  
   webServer.stop();
   Serial.println("Web server stopped");
   
