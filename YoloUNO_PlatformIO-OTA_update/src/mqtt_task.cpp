@@ -1,6 +1,7 @@
 #include "mqtt_task.h"
 #include "wifi_task.h"
 #include "ap_mode_task.h"
+#include "sinric_task.h"
 
 // MQTT configuration
 const char TOKEN[] = "wKVmVLxdNixrgQkwzEup";
@@ -35,6 +36,15 @@ bool requestedShared = false;
 bool rpc_subscribed = false;
 bool ledState = false;
 bool fanState = false;
+bool lastKnownLedState = false; // Track last known state to prevent loops
+bool lastKnownFanState = false;
+unsigned long lastSharedRequest = 0;
+const unsigned long SHARED_REQUEST_INTERVAL = 5000; // Request every 5 seconds to avoid server override conflicts
+bool forceSharedRequest = false; // Flag to force immediate request
+
+// Debug print control
+static unsigned long lastDebugPrint = 0;
+const unsigned long DEBUG_PRINT_INTERVAL = 10000; // Print debug info every 10 seconds max
 
 // GPIO pins - need to be defined here for RPC callbacks
 #define LED_PIN 2
@@ -64,18 +74,23 @@ void requestTimedOut() {
 
 // LED Control
 void processLedControl(const JsonVariantConst &data, JsonDocument &response) {
-  Serial.println("Received LED control RPC command");
-
   if (data.containsKey("value")) {
     bool led_value = data["value"];
     ledState = led_value;
     digitalWrite(LED_PIN, ledState ? HIGH : LOW);
-    Serial.printf("Setting LED to: %s\n", ledState ? "ON" : "OFF");
+    Serial.printf("RPC LED control: %s\n", ledState ? "ON" : "OFF");
     
     // Send attribute update to ThingsBoard
-    if (xSemaphoreTake(tbMutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
       tb.sendAttributeData("deviceState1", ledState);
       xSemaphoreGive(tbMutex);
+    } else {
+      Serial.println("RPC LED: Failed to acquire tbMutex");
+    }
+    
+    // Update SinricPro (only if WiFi connected and not in AP mode)
+    if (wifiConnected && !apMode) {
+      updateSinricProState(ledState);
     }
     
     response["status"] = "success";
@@ -88,18 +103,19 @@ void processLedControl(const JsonVariantConst &data, JsonDocument &response) {
 
 // Fan Control
 void processFanControl(const JsonVariantConst &data, JsonDocument &response) {
-  Serial.println("Received Fan control RPC command");
-
   if (data.containsKey("value")) {
     bool fan_value = data["value"];
     fanState = fan_value;
+    lastKnownFanState = fan_value; // Update tracking to prevent loops
     digitalWrite(FAN_PIN, fanState ? HIGH : LOW);
-    Serial.printf("Setting Fan to: %s\n", fanState ? "ON" : "OFF");
+    Serial.printf("RPC Fan control: %s\n", fanState ? "ON" : "OFF");
     
     // Send attribute update to ThingsBoard
-    if (xSemaphoreTake(tbMutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
       tb.sendAttributeData("deviceState2", fanState);
       xSemaphoreGive(tbMutex);
+    } else {
+      Serial.println("RPC Fan: Failed to acquire tbMutex");
     }
     
     response["status"] = "success";
@@ -112,20 +128,25 @@ void processFanControl(const JsonVariantConst &data, JsonDocument &response) {
 
 // Generic Switch Control
 void processSwitchControl(const JsonVariantConst &data, JsonDocument &response) {
-  Serial.println("Received Switch control RPC command");
-
   if (data.containsKey("switch")) {
     bool switch_value = data["switch"];
     // Switch can control either LED or Fan based on context
     // For this example, we'll control the LED
     ledState = switch_value;
     digitalWrite(LED_PIN, ledState ? HIGH : LOW);
-    Serial.printf("Setting Switch (LED) to: %s\n", ledState ? "ON" : "OFF");
+    Serial.printf("RPC Switch control: %s\n", ledState ? "ON" : "OFF");
     
     // Send attribute update to ThingsBoard
-    if (xSemaphoreTake(tbMutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
       tb.sendAttributeData("deviceState1", ledState);
       xSemaphoreGive(tbMutex);
+    } else {
+      Serial.println("RPC Switch: Failed to acquire tbMutex");
+    }
+    
+    // Update SinricPro (only if WiFi connected and not in AP mode)
+    if (wifiConnected && !apMode) {
+      updateSinricProState(ledState);
     }
     
     response["status"] = "success";
@@ -137,58 +158,139 @@ void processSwitchControl(const JsonVariantConst &data, JsonDocument &response) 
 }
 
 void processSharedAttributeUpdate(const JsonObjectConst &data) {
-  Serial.println("Received shared attribute update:");
+  bool hasActualChange = false;
   
   for (auto it = data.begin(); it != data.end(); ++it) {
     const char* key = it->key().c_str();
-    Serial.print("Key: ");
-    Serial.print(key);
     
     // Handle different attribute types
     if (strcmp(key, "deviceState1") == 0) {
-      ledState = it->value().as<bool>();
-      digitalWrite(LED_PIN, ledState ? HIGH : LOW);
-      Serial.printf(", Value: %s\n", ledState ? "ON" : "OFF");
+      bool newLedState = it->value().as<bool>();
+      
+      // Only accept updates that represent real changes from dashboard
+      if (newLedState != lastKnownLedState) {
+        ledState = newLedState;
+        lastKnownLedState = newLedState;
+        digitalWrite(LED_PIN, ledState ? HIGH : LOW);
+        hasActualChange = true;
+        
+        Serial.printf("Dashboard changed LED to: %s\n", ledState ? "ON" : "OFF");
+        
+        // Update SinricPro with the new state (only if WiFi connected and not in AP mode)
+        if (wifiConnected && !apMode) {
+          updateSinricProState(ledState);
+          Serial.printf("Synced to Google Home: %s\n", ledState ? "ON" : "OFF");
+        }
+      }
     } 
     else if (strcmp(key, "deviceState2") == 0) {
-      fanState = it->value().as<bool>();
-      digitalWrite(FAN_PIN, fanState ? HIGH : LOW);
-      Serial.printf(", Value: %s\n", fanState ? "ON" : "OFF");
+      bool newFanState = it->value().as<bool>();
+      
+      // Only accept updates that represent real changes from dashboard
+      if (newFanState != lastKnownFanState) {
+        fanState = newFanState;
+        lastKnownFanState = newFanState;
+        digitalWrite(FAN_PIN, fanState ? HIGH : LOW);
+        hasActualChange = true;
+        
+        Serial.printf("Dashboard changed Fan to: %s\n", fanState ? "ON" : "OFF");
+      }
     }
     else if (strcmp(key, "deviceState3") == 0) {
       bool state3 = it->value().as<bool>();
-      // Implement device 3 control logic
-      Serial.printf(", Value: %s\n", state3 ? "ON" : "OFF");
+      // Only print if implementing device 3 control
     }
     else if (strcmp(key, "deviceState4") == 0) {
       bool state4 = it->value().as<bool>();
-      // Implement device 4 control logic
-      Serial.printf(", Value: %s\n", state4 ? "ON" : "OFF");
+      // Only print if implementing device 4 control
     }
     else if (strcmp(key, "deviceState5") == 0) {
       bool state5 = it->value().as<bool>();
-      // Implement device 5 control logic
-      Serial.printf(", Value: %s\n", state5 ? "ON" : "OFF");
-    }
-    else {
-      Serial.println(", Value type not handled");
+      // Only print if implementing device 5 control
     }
   }
-
-  // Debug print the whole JSON
-  const size_t jsonSize = Helper::Measure_Json(data);
-  char buffer[jsonSize];
-  serializeJson(data, buffer, jsonSize);
-  Serial.println(buffer);
 }
 
 void processSharedAttributeRequest(const JsonObjectConst &data) {
-  Serial.println("Received shared attribute request:");
+  static bool lastServerOverrideState = false;
+  static bool lastServerOverrideStateFan = false;
+  bool hasStateChange = false;
+  bool hasServerOverride = false;
   
-  const size_t jsonSize = Helper::Measure_Json(data);
-  char buffer[jsonSize];
-  serializeJson(data, buffer, jsonSize);
-  Serial.println(buffer);
+  // Process the shared attributes the same way as updates
+  for (auto it = data.begin(); it != data.end(); ++it) {
+    const char* key = it->key().c_str();
+    
+    // Handle different attribute types
+    if (strcmp(key, "deviceState1") == 0) {
+      bool newLedState = it->value().as<bool>();
+      
+      // Check if server state conflicts with current state
+      if (newLedState != lastKnownLedState) {
+        hasServerOverride = true;
+        
+        // Only print if this is a new override situation
+        if (!lastServerOverrideState) {
+          Serial.printf("SERVER OVERRIDE DETECTED - Server wants %s but device is %s\n", 
+                       newLedState ? "ON" : "OFF", 
+                       lastKnownLedState ? "ON" : "OFF");
+          lastServerOverrideState = true;
+        }
+        
+        // Instead of accepting server override, update server with current state
+        if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+          tb.sendAttributeData("deviceState1", lastKnownLedState);
+          xSemaphoreGive(tbMutex);
+        }
+      } else {
+        // States match - reset override flag
+        if (lastServerOverrideState) {
+          Serial.println("Server state corrected - states now match");
+          lastServerOverrideState = false;
+        }
+      }
+    } 
+    else if (strcmp(key, "deviceState2") == 0) {
+      bool newFanState = it->value().as<bool>();
+      
+      // Check if server state conflicts with current state
+      if (newFanState != lastKnownFanState) {
+        hasServerOverride = true;
+        
+        // Only print if this is a new override situation for Fan
+        if (!lastServerOverrideStateFan) {
+          Serial.printf("SERVER OVERRIDE DETECTED (Fan) - Server wants %s but device is %s\n", 
+                       newFanState ? "ON" : "OFF", 
+                       lastKnownFanState ? "ON" : "OFF");
+          lastServerOverrideStateFan = true;
+        }
+        
+        // Instead of accepting server override, update server with current state
+        if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+          tb.sendAttributeData("deviceState2", lastKnownFanState);
+          xSemaphoreGive(tbMutex);
+        }
+      } else {
+        // States match - reset override flag for Fan
+        if (lastServerOverrideStateFan) {
+          Serial.println("Server state corrected (Fan) - states now match");
+          lastServerOverrideStateFan = false;
+        }
+      }
+    }
+    else if (strcmp(key, "deviceState3") == 0) {
+      bool state3 = it->value().as<bool>();
+      // Only print if implementing device 3 control
+    }
+    else if (strcmp(key, "deviceState4") == 0) {
+      bool state4 = it->value().as<bool>();
+      // Only print if implementing device 4 control
+    }
+    else if (strcmp(key, "deviceState5") == 0) {
+      bool state5 = it->value().as<bool>();
+      // Only print if implementing device 5 control
+    }
+  }
 }
 
 void mqttTask(void *parameter) {
@@ -205,7 +307,7 @@ void mqttTask(void *parameter) {
       continue;
     }
     
-    if (xSemaphoreTake(tbMutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
       if (!tb.connected()) {
         // Reconnect to the ThingsBoard server,
         // if a connection was disrupted or has not yet been established
@@ -219,11 +321,13 @@ void mqttTask(void *parameter) {
         }
         
         if (!requestedShared) {
-          Serial.println("Requesting shared attributes...");
+          Serial.println("Requesting initial shared attributes...");
           const Attribute_Request_Callback<MAX_ATTRIBUTES> sharedCallback(&processSharedAttributeRequest, REQUEST_TIMEOUT_MICROSECONDS, &requestTimedOut, SHARED_ATTRIBUTES);
           requestedShared = attr_request.Shared_Attributes_Request(sharedCallback);
           if (!requestedShared) {
             Serial.println("Failed to request shared attributes");
+          } else {
+            Serial.println("Initial shared attributes request sent successfully");
           }
         }
 
@@ -254,8 +358,26 @@ void mqttTask(void *parameter) {
         }
       }
       
+      // Immediate or periodic shared attribute request to ensure sync
+      unsigned long currentTime = millis();
+      bool shouldRequest = forceSharedRequest || (currentTime - lastSharedRequest > SHARED_REQUEST_INTERVAL);
+      
+      if (shouldRequest) {
+        if (forceSharedRequest) {
+          Serial.println("Force sync request (button/SinricPro change)");
+          forceSharedRequest = false; // Reset flag
+        }
+        
+        const Attribute_Request_Callback<MAX_ATTRIBUTES> callback(&processSharedAttributeRequest, REQUEST_TIMEOUT_MICROSECONDS, &requestTimedOut, SHARED_ATTRIBUTES);
+        attr_request.Shared_Attributes_Request(callback);
+        lastSharedRequest = currentTime;
+      }
+      
       // Process MQTT messages
       tb.loop();
+      
+      // Removed automatic force request to reduce noise
+      
       xSemaphoreGive(tbMutex);
     }
     
