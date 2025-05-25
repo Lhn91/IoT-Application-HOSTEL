@@ -36,6 +36,9 @@ extern ThingsBoard tb;
 extern OTA_Firmware_Update<> ota;
 extern bool ledState;
 extern bool fanState;
+extern bool lastKnownLedState;
+extern bool lastKnownFanState;
+extern bool forceSharedRequest;
 
 // Functions
 void processLedControl(const JsonVariantConst &data, JsonDocument &response);

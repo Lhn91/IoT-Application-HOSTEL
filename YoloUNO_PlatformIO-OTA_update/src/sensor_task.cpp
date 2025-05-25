@@ -2,6 +2,7 @@
 #include "mqtt_task.h"
 #include "ap_mode_task.h"
 #include "wifi_task.h"
+#include "sinric_task.h"
 
 // DHT11 configuration
 #define DHTPIN 6     // Digital pin connected to the DHT sensor
@@ -40,15 +41,22 @@ void sensorTask(void *parameter) {
       } else {
         Serial.println("Sending telemetry. Temperature: " + String(temperature, 1) + " humidity: " + String(humidity, 1));
         
-        if (xSemaphoreTake(tbMutex, portMAX_DELAY) == pdTRUE) {
+        if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
           tb.sendTelemetryData(TEMPERATURE_KEY, temperature);
           tb.sendTelemetryData(HUMIDITY_KEY, humidity);
           tb.sendAttributeData("rssi", WiFi.RSSI()); // WiFi signal strength
           tb.sendAttributeData("deviceState1", ledState); // Current LED state
           tb.sendAttributeData("deviceState2", fanState); // Current Fan state
           xSemaphoreGive(tbMutex);
+        } else {
+          Serial.println("ThingsBoard: Failed to acquire mutex for telemetry");
+        }
+        
+        // Send to SinricPro for Google Home integration (only if WiFi connected)
+        if (wifiConnected && !apMode) {
+          updateSinricProTemperature(temperature, humidity);
         }
       }
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
   }
 } 
