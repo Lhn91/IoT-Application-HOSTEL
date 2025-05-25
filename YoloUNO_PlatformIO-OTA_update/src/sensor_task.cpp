@@ -32,8 +32,8 @@ void sensorTask(void *parameter) {
       continue;
     }
      // Read temperature and humidity from DHT11
-      float humidity = dht.readHumidity();
-      float temperature = dht.readTemperature();
+      int humidity = dht.readHumidity();
+      int temperature = dht.readTemperature();
       
       // Check if any reads failed
       if (isnan(humidity) || isnan(temperature)) {
