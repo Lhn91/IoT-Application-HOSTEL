@@ -9,6 +9,7 @@
 #include "sensor_task.h"
 #include "button_task.h"
 #include "ap_mode_task.h"
+#include "sinric_task.h"
 
 // Định nghĩa các hằng số
 // const int EEPROM_SIZE = 512;  // Now defined in main_constants.cpp

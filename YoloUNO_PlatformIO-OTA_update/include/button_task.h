@@ -13,7 +13,9 @@ extern const int buttonPins[NUM_BUTTONS];
 
 // External variables from mqtt_task.cpp
 extern bool ledState;
+extern bool lastKnownLedState;
 extern bool fanState;
+extern bool forceSharedRequest;
 extern SemaphoreHandle_t tbMutex;
 extern ThingsBoard tb;
 
