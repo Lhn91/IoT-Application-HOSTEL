@@ -3,10 +3,12 @@
 #include "wifi_task.h"
 #include "ap_mode_task.h"
 #include "http_export.h"
+#include "UNIT_ACMEASURE.h"
 #include <Wire.h>
 
 // Global instance
 EnergyManager energyManager;
+UNIT_ACMEASURE acMeasure;
 
 // Constructor
 EnergyManager::EnergyManager() : 
@@ -41,8 +43,12 @@ void EnergyManager::begin() {
     rfid.PCD_Init();
     rfid.PCD_DumpVersionToSerial();
     
-    // Initialize I2C for M5 Stack AC Measure Unit
-    Wire.begin();
+    // Initialize M5 Stack AC Measure Unit
+    if (!acMeasure.begin(&Wire, AC_MEASURE_I2C_ADDR, 21, 22)) {
+        Serial.println("Failed to initialize M5 Stack AC Measure Unit!");
+    } else {
+        Serial.println("M5 Stack AC Measure Unit initialized successfully");
+    }
     
     // Initialize NTP client
     timeClient.begin();
@@ -222,26 +228,24 @@ void EnergyManager::endSession(const String& cardId) {
 
 // Read power from M5 Stack AC Measure Unit
 float EnergyManager::readPowerFromM5Stack() {
-    Wire.beginTransmission(AC_MEASURE_I2C_ADDR);
-    Wire.write(0x00); // Register address for power reading
-    Wire.endTransmission();
+    // Get power in watts from M5 Stack AC Measure Unit
+    uint32_t powerRaw = acMeasure.getPower();
+    float power = static_cast<float>(powerRaw) / 10.0f; // Convert to watts (assuming power is in 0.1W units)
     
-    Wire.requestFrom(AC_MEASURE_I2C_ADDR, 4); // Request 4 bytes (float)
+    // Get voltage and current for logging
+    uint16_t voltageRaw = acMeasure.getVoltage();
+    uint16_t currentRaw = acMeasure.getCurrent();
+    float voltage = static_cast<float>(voltageRaw) / 10.0f; // Convert to volts
+    float current = static_cast<float>(currentRaw) / 1000.0f; // Convert to amperes
     
-    if (Wire.available() >= 4) {
-        union {
-            float f;
-            uint8_t bytes[4];
-        } power;
-        
-        for (int i = 0; i < 4; i++) {
-            power.bytes[i] = Wire.read();
-        }
-        
-        return power.f;
-    }
+    // Get power factor
+    uint8_t powerFactor = acMeasure.getPowerFactor();
     
-    return 0.0; // Return 0 if reading failed
+    // Log measurements
+    Serial.printf("AC Measurements - V: %.1fV, I: %.3fA, P: %.1fW, PF: %d%%\n", 
+                  voltage, current, power, powerFactor);
+    
+    return power;
 }
 
 // Update energy calculation
@@ -357,15 +361,42 @@ void initEnergyManagement() {
 // Energy management task for RTOS
 void energyManagementTask(void *parameter) {
     while (true) {
-        // Skip if in AP mode
-        if (apMode) {
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-            continue;
-        }
-        
-        // Run energy management loop
+        // Run the energy management loop
         energyManager.loop();
         
-        vTaskDelay(100 / portTICK_PERIOD_MS); // 100ms delay
+        // If device is in use, update power measurements more frequently
+        if (energyManager.isDeviceInUse()) {
+            // Update power measurements every 200ms for more accurate readings
+            static unsigned long lastPowerUpdate = 0;
+            if (millis() - lastPowerUpdate >= 200) {
+                // Get power measurements
+                uint32_t powerRaw = acMeasure.getPower();
+                uint16_t voltageRaw = acMeasure.getVoltage();
+                uint16_t currentRaw = acMeasure.getCurrent();
+                uint32_t apparentPowerRaw = acMeasure.getApparentPower();
+                uint8_t powerFactor = acMeasure.getPowerFactor();
+                
+                // Convert to real units
+                float power = static_cast<float>(powerRaw) / 10.0f; // W
+                float voltage = static_cast<float>(voltageRaw) / 10.0f; // V
+                float current = static_cast<float>(currentRaw) / 1000.0f; // A
+                float apparentPower = static_cast<float>(apparentPowerRaw) / 10.0f; // VA
+                
+                // Send telemetry to ThingsBoard
+                if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+                    tb.sendTelemetryData("voltage", voltage);
+                    tb.sendTelemetryData("current", current);
+                    tb.sendTelemetryData("power", power);
+                    tb.sendTelemetryData("apparent_power", apparentPower);
+                    tb.sendTelemetryData("power_factor", powerFactor);
+                    xSemaphoreGive(tbMutex);
+                }
+                
+                lastPowerUpdate = millis();
+            }
+        }
+        
+        // Give other tasks a chance to run
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 } 
