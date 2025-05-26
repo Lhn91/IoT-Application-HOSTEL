@@ -10,6 +10,8 @@
 #include "button_task.h"
 #include "ap_mode_task.h"
 #include "sinric_task.h"
+#include "energy_management.h"
+#include "http_export.h"
 
 // Định nghĩa các hằng số
 // const int EEPROM_SIZE = 512;  // Now defined in main_constants.cpp
@@ -38,6 +40,12 @@ void setup() {
   
   // Khởi tạo cảm biến DHT
   dht.begin();
+  
+  // Khởi tạo energy management system
+  initEnergyManagement();
+  
+  // Khởi tạo HTTP exporter for Google Sheets
+  initHTTPExporter();
   
   // Khởi tạo semaphores
   initSemaphores();
