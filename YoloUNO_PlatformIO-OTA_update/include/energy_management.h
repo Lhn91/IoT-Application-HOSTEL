@@ -9,6 +9,7 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <TimeLib.h>
+#include "UNIT_ACMEASURE.h"
 
 // RFID Configuration
 #define RST_PIN         22
@@ -81,8 +82,9 @@ public:
     void sendSessionData(const UserSession& session);
 };
 
-// Global instance
+// Global instances
 extern EnergyManager energyManager;
+extern UNIT_ACMEASURE acMeasure;
 
 // Function declarations for task integration
 void energyManagementTask(void *parameter);
