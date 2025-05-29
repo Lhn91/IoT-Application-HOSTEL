@@ -19,6 +19,10 @@ extern bool fanState;
 
 // Sensor Reading Task
 void sensorTask(void *parameter) {
+  // Add DHT initialization
+  dht.begin();
+  Serial.println("DHT11 Sensor initialized");
+  
   while (true) {
     // Skip if in AP mode
     if (apMode) {
@@ -31,32 +35,42 @@ void sensorTask(void *parameter) {
       vTaskDelay(1000 / portTICK_PERIOD_MS);
       continue;
     }
-     // Read temperature and humidity from DHT11
-      int humidity = dht.readHumidity();
-      int temperature = dht.readTemperature();
+
+    // Read temperature and humidity from DHT11
+    Serial.println("\n--- Reading DHT11 sensor ---");
+    vTaskDelay(100 / portTICK_PERIOD_MS);  // Small delay before reading
+    
+    float humidity = dht.readHumidity();
+    vTaskDelay(50 / portTICK_PERIOD_MS);   // Small delay between reads
+    float temperature = dht.readTemperature();
       
-      // Check if any reads failed
-      if (isnan(humidity) || isnan(temperature)) {
-        Serial.println("Failed to read from DHT sensor!");
+    // Check if any reads failed
+    if (isnan(humidity) || isnan(temperature)) {
+      Serial.println("Failed to read from DHT sensor!");
+      Serial.print("Raw humidity value: ");
+      Serial.println(humidity);
+      Serial.print("Raw temperature value: ");
+      Serial.println(temperature);
+    } else {
+      Serial.printf("Temperature: %.1f°C, Humidity: %.1f%%\n", temperature, humidity);
+        
+      if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        tb.sendTelemetryData(TEMPERATURE_KEY, temperature);
+        tb.sendTelemetryData(HUMIDITY_KEY, humidity);
+        tb.sendAttributeData("rssi", WiFi.RSSI());
+        tb.sendAttributeData("deviceState1", ledState);
+        tb.sendAttributeData("deviceState2", fanState);
+        xSemaphoreGive(tbMutex);
+        Serial.println("Data sent to ThingsBoard successfully");
       } else {
-        Serial.println("Sending telemetry. Temperature: " + String(temperature, 1) + " humidity: " + String(humidity, 1));
-        
-        if (xSemaphoreTake(tbMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
-          tb.sendTelemetryData(TEMPERATURE_KEY, temperature);
-          tb.sendTelemetryData(HUMIDITY_KEY, humidity);
-          tb.sendAttributeData("rssi", WiFi.RSSI()); // WiFi signal strength
-          tb.sendAttributeData("deviceState1", ledState); // Current LED state
-          tb.sendAttributeData("deviceState2", fanState); // Current Fan state
-          xSemaphoreGive(tbMutex);
-        } else {
-          Serial.println("ThingsBoard: Failed to acquire mutex for telemetry");
-        }
-        
-        // Send to SinricPro for Google Home integration (only if WiFi connected)
-        if (wifiConnected && !apMode) {
-          updateSinricProTemperature(temperature, humidity);
-        }
+        Serial.println("ThingsBoard: Failed to acquire mutex for telemetry");
       }
+        
+      // Send to SinricPro for Google Home integration
+      if (wifiConnected && !apMode) {
+        updateSinricProTemperature(temperature, humidity);
+      }
+    }
     vTaskDelay(5000 / portTICK_PERIOD_MS);
   }
 } 

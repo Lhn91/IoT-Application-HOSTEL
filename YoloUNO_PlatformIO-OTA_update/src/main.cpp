@@ -10,6 +10,7 @@
 #include "button_task.h"
 #include "ap_mode_task.h"
 #include "sinric_task.h"
+#include "led_task.h"
 
 // Định nghĩa các hằng số
 // const int EEPROM_SIZE = 512;  // Now defined in main_constants.cpp
@@ -31,13 +32,14 @@ void setup() {
   loadWiFiCredentials();
   
   // Khởi tạo GPIO pins
-  pinMode(LED_PIN, OUTPUT);
   pinMode(FAN_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
   digitalWrite(FAN_PIN, LOW);
   
   // Khởi tạo cảm biến DHT
   dht.begin();
+  
+  // Khởi tạo LED strip
+  setupLEDStrip();
   
   // Khởi tạo semaphores
   initSemaphores();
