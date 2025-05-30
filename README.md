@@ -112,8 +112,8 @@ ESP32 GPIO Mapping:
 ├── GPIO 2:  LED Strip (WS2812B)
 ├── GPIO 6:  DHT11 Data Pin
 ├── GPIO 10: Fan PWM Control
-├── GPIO 0:  Button 0 (Boot button)
-└── GPIO X:  Button 1 (External button)
+├── GPIO 8:  Button 0 (Boot button)
+└── GPIO 9:  Button 1 (External button)
 ```
 
 ## V. Chức năng
