@@ -14,6 +14,7 @@ extern TaskHandle_t buttonTaskHandle;
 extern TaskHandle_t apModeTaskHandle;
 extern TaskHandle_t sinricTaskHandle;
 extern TaskHandle_t ledTaskHandle;
+extern TaskHandle_t fanTaskHandle;
 
 // Semaphore cho các thao tác ThingsBoard
 extern SemaphoreHandle_t tbMutex;
@@ -27,6 +28,7 @@ extern SemaphoreHandle_t tbMutex;
 #define AP_MODE_TASK_STACK_SIZE  4096
 #define SINRIC_TASK_STACK_SIZE   4096
 #define LED_TASK_STACK_SIZE      4096
+#define FAN_TASK_STACK_SIZE      4096
 #define WIFI_TASK_PRIORITY       1
 #define MQTT_TASK_PRIORITY       1
 #define SENSOR_TASK_PRIORITY     1
@@ -35,6 +37,7 @@ extern SemaphoreHandle_t tbMutex;
 #define AP_MODE_TASK_PRIORITY    1
 #define SINRIC_TASK_PRIORITY     1
 #define LED_TASK_PRIORITY        2  // Increased priority for LED task
+#define FAN_TASK_PRIORITY        2  // Increased priority for fan PWM control
 
 // Hàm khởi tạo semaphore
 void initSemaphores();

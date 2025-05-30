@@ -11,6 +11,7 @@
 #include "ap_mode_task.h"
 #include "sinric_task.h"
 #include "led_task.h"
+#include "fan_task.h"
 
 // Định nghĩa các hằng số
 // const int EEPROM_SIZE = 512;  // Now defined in main_constants.cpp
@@ -31,9 +32,8 @@ void setup() {
   EEPROM.begin(EEPROM_SIZE);
   loadWiFiCredentials();
   
-  // Khởi tạo GPIO pins
-  pinMode(FAN_PIN, OUTPUT);
-  digitalWrite(FAN_PIN, LOW);
+  // Khởi tạo GPIO pins và PWM cho quạt
+  setupFanPWM();
   
   // Khởi tạo cảm biến DHT
   dht.begin();

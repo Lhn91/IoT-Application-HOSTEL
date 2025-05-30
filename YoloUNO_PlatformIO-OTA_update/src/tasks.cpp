@@ -7,6 +7,7 @@
 #include "ap_mode_task.h"
 #include "sinric_task.h"
 #include "led_task.h"
+#include "fan_task.h"
 
 // Task handles
 TaskHandle_t wifiTaskHandle = NULL;
@@ -17,6 +18,7 @@ TaskHandle_t buttonTaskHandle = NULL;
 TaskHandle_t apModeTaskHandle = NULL;
 TaskHandle_t sinricTaskHandle = NULL;
 TaskHandle_t ledTaskHandle = NULL;
+TaskHandle_t fanTaskHandle = NULL;
 
 // Semaphore cho các thao tác ThingsBoard
 SemaphoreHandle_t tbMutex = NULL;
@@ -40,4 +42,5 @@ void createAllTasks() {
   xTaskCreate(apModeTask, "APModeTask", AP_MODE_TASK_STACK_SIZE, NULL, AP_MODE_TASK_PRIORITY, &apModeTaskHandle);
   xTaskCreate(sinricTask, "SinricTask", SINRIC_TASK_STACK_SIZE, NULL, SINRIC_TASK_PRIORITY, &sinricTaskHandle);
   xTaskCreate(ledTask, "LEDTask", LED_TASK_STACK_SIZE, NULL, LED_TASK_PRIORITY, &ledTaskHandle);
+  xTaskCreate(fanTask, "FanTask", FAN_TASK_STACK_SIZE, NULL, FAN_TASK_PRIORITY, &fanTaskHandle);
 } 

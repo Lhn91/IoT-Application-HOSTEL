@@ -2,6 +2,7 @@
 #include "wifi_task.h"
 #include "ap_mode_task.h"
 #include "sinric_task.h"
+#include "fan_task.h"
 
 // MQTT configuration
 const char TOKEN[] = "wKVmVLxdNixrgQkwzEup";
@@ -107,7 +108,7 @@ void processFanControl(const JsonVariantConst &data, JsonDocument &response) {
     bool fan_value = data["value"];
     fanState = fan_value;
     lastKnownFanState = fan_value; // Update tracking to prevent loops
-    digitalWrite(FAN_PIN, fanState ? HIGH : LOW);
+    updateFanSpeed(fanState); // Use PWM control function
     Serial.printf("RPC Fan control: %s\n", fanState ? "ON" : "OFF");
     
     // Send attribute update to ThingsBoard
@@ -190,7 +191,7 @@ void processSharedAttributeUpdate(const JsonObjectConst &data) {
       if (newFanState != lastKnownFanState) {
         fanState = newFanState;
         lastKnownFanState = newFanState;
-        digitalWrite(FAN_PIN, fanState ? HIGH : LOW);
+        updateFanSpeed(fanState); // Use PWM control function
         hasActualChange = true;
         
         Serial.printf("Dashboard changed Fan to: %s\n", fanState ? "ON" : "OFF");
@@ -249,7 +250,7 @@ void processSharedAttributeRequest(const JsonObjectConst &data) {
           lastServerOverrideState = false;
         }
       }
-    } 
+    }
     else if (strcmp(key, "deviceState2") == 0) {
       bool newFanState = it->value().as<bool>();
       
@@ -358,25 +359,8 @@ void mqttTask(void *parameter) {
         }
       }
       
-      // Immediate or periodic shared attribute request to ensure sync
-      unsigned long currentTime = millis();
-      bool shouldRequest = forceSharedRequest || (currentTime - lastSharedRequest > SHARED_REQUEST_INTERVAL);
-      
-      if (shouldRequest) {
-        if (forceSharedRequest) {
-          Serial.println("Force sync request (button/SinricPro change)");
-          forceSharedRequest = false; // Reset flag
-        }
-        
-        const Attribute_Request_Callback<MAX_ATTRIBUTES> callback(&processSharedAttributeRequest, REQUEST_TIMEOUT_MICROSECONDS, &requestTimedOut, SHARED_ATTRIBUTES);
-        attr_request.Shared_Attributes_Request(callback);
-        lastSharedRequest = currentTime;
-      }
-      
       // Process MQTT messages
       tb.loop();
-      
-      // Removed automatic force request to reduce noise
       
       xSemaphoreGive(tbMutex);
     }

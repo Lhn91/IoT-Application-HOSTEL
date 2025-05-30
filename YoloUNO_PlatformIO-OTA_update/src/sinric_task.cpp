@@ -1,6 +1,7 @@
 #include "sinric_task.h"
 #include "wifi_task.h"
 #include "ap_mode_task.h"
+#include "fan_task.h"
 
 // Đây là file duy nhất include SinricPro
 #define SINRICPRO_IMPLEMENTATION
@@ -12,24 +13,38 @@
 const char* SINRIC_APP_KEY = "d8ed1eed-cc79-4315-9028-a8509e040798";     // Replace with your SinricPro App Key
 const char* SINRIC_APP_SECRET = "a3fead70-1d7f-4a9a-804b-79de1a1310bc-f860f062-8000-4312-9f25-d5653560c3c0"; // Replace with your SinricPro App Secret
 const char* SWITCH_ID = "6832c78b8ed485694c3f5b3d";        // Replace with your SinricPro Device ID
+const char* FAN_SWITCH_ID = "683920eef64d827f967c8f6d";    // Fan switch ID
 const char* TEMPERATURE_SENSOR_ID = "6832de298ed485694c3f7312"; // DHT11 Temperature Sensor ID
 
 // Create a mutex for SinricPro operations
 SemaphoreHandle_t sinricMutex = NULL;
 
-// Callback function for SinricPro switch state change
+// Callback function for SinricPro LED switch state change
 static bool onPowerState(const String &deviceId, bool &state) {
   Serial.printf("SinricPro: Device %s turned %s\n", deviceId.c_str(), state ? "ON" : "OFF");
   
-  // Update the LED state and tracking variable
-  ledState = state;
-  lastKnownLedState = state; // Update tracking to prevent loops
-  digitalWrite(LED_PIN, ledState ? HIGH : LOW);
-  
-  // Update ThingsBoard with the new state - force server sync
-  if (xSemaphoreTake(tbMutex, portMAX_DELAY) == pdTRUE) {
-    tb.sendAttributeData("deviceState1", ledState);
-    xSemaphoreGive(tbMutex);
+  if (deviceId == SWITCH_ID) {
+    // Update the LED state and tracking variable
+    ledState = state;
+    lastKnownLedState = state; // Update tracking to prevent loops
+    digitalWrite(LED_PIN, ledState ? HIGH : LOW);
+    
+    // Update ThingsBoard with the new state - force server sync
+    if (xSemaphoreTake(tbMutex, portMAX_DELAY) == pdTRUE) {
+      tb.sendAttributeData("deviceState1", ledState);
+      xSemaphoreGive(tbMutex);
+    }
+  } else if (deviceId == FAN_SWITCH_ID) {
+    // Update the fan state and tracking variable
+    fanState = state;
+    lastKnownFanState = state; // Update tracking to prevent loops
+    updateFanSpeed(fanState); // Use PWM control function
+    
+    // Update ThingsBoard with the new state
+    if (xSemaphoreTake(tbMutex, portMAX_DELAY) == pdTRUE) {
+      tb.sendAttributeData("deviceState2", fanState);
+      xSemaphoreGive(tbMutex);
+    }
   }
   
   return true; // Indicate successful state change
@@ -40,6 +55,15 @@ void updateSinricProState(bool state) {
   if (xSemaphoreTake(sinricMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
     SinricProSwitch& mySwitch = SinricPro[SWITCH_ID];
     mySwitch.sendPowerStateEvent(state);
+    xSemaphoreGive(sinricMutex);
+  }
+}
+
+// Function to update SinricPro fan state
+void updateSinricProFanState(bool state) {
+  if (xSemaphoreTake(sinricMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+    SinricProSwitch& fanSwitch = SinricPro[FAN_SWITCH_ID];
+    fanSwitch.sendPowerStateEvent(state);
     xSemaphoreGive(sinricMutex);
   }
 }
@@ -63,9 +87,13 @@ void setupSinricPro() {
     sinricMutex = xSemaphoreCreateMutex();
   }
 
-  // Register callback function for switch device events
+  // Register callback function for LED switch device events
   SinricProSwitch& mySwitch = SinricPro[SWITCH_ID];
   mySwitch.onPowerState(onPowerState);
+  
+  // Register callback function for fan switch device events
+  SinricProSwitch& fanSwitch = SinricPro[FAN_SWITCH_ID];
+  fanSwitch.onPowerState(onPowerState);
   
   // Setup temperature sensor (no callbacks needed for sensor-only device)
   SinricProTemperaturesensor& myTempSensor = SinricPro[TEMPERATURE_SENSOR_ID];

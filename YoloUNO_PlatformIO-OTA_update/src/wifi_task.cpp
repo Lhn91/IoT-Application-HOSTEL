@@ -10,8 +10,17 @@ const int MAX_RECONNECT_ATTEMPTS = 3;  // Maximum number of reconnection attempt
 
 void InitWiFi() {
   Serial.println("Connecting to AP ...");
-  // Attempting to establish a connection to the given WiFi network
+  
+  // Initialize WiFi in Station mode
   WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+  
+  // Configure WiFi
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
+  
+  // Start connection attempt
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   
   // Wait for connection with timeout
@@ -30,21 +39,42 @@ void InitWiFi() {
   } else {
     Serial.println();
     Serial.println("Failed to connect to WiFi. Starting AP Mode for configuration...");
-    // AP Mode setup will be called from main
+    wifiConnected = false;
   }
 }
 
 bool reconnect() {
-  // Check to ensure we aren't connected yet
-  const wl_status_t status = WiFi.status();
-  if (status == WL_CONNECTED) {
+  // Check if we're already connected
+  if (WiFi.status() == WL_CONNECTED) {
     wifiConnected = true;
     return true;
   }
 
-  // If we aren't establish a new connection to the given WiFi network
-  InitWiFi();
-  return wifiConnected;
+  Serial.println("Attempting to reconnect to WiFi...");
+  
+  // Try to reconnect
+  WiFi.disconnect();
+  delay(100);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  
+  // Wait for connection with shorter timeout for reconnection
+  uint32_t startTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_TIMEOUT/2) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println();
+    Serial.println("Reconnected to WiFi");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    wifiConnected = true;
+    return true;
+  }
+  
+  wifiConnected = false;
+  return false;
 }
 
 void wifiTask(void *parameter) {
