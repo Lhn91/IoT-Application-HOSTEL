@@ -121,7 +121,7 @@ ESP32 GPIO Mapping:
 ### 1. Fan Task
 
 **Mô tả:**
-Fan Task có trởnhiệm điều khiển quạt thông qua PWM (Pulse Width Modulation). Task này liên tục kiểm tra trạng thái của biến `fanState` và cập nhật tốc độ quạt tương ứng. Khi hệ thống ở chế độ AP Mode, task sẽ tạm dừng hoạt động để tránh xung đột tài nguyên. Quạt được điều khiển với 2 mức tốc độ: 0% (tắt) và 50% (bật) thông qua PWM channel 0 với tần số 25kHz.
+Fan Task có trách nhiệm điều khiển quạt thông qua PWM (Pulse Width Modulation). Task này liên tục kiểm tra trạng thái của biến `fanState` và cập nhật tốc độ quạt tương ứng. Khi hệ thống ở chế độ AP Mode, task sẽ tạm dừng hoạt động để tránh xung đột tài nguyên. Quạt được điều khiển với 2 mức tốc độ: 0% (tắt) và 50% (bật) thông qua PWM channel 0 với tần số 25kHz.
 
 **Hiện thực:**
 ```cpp
