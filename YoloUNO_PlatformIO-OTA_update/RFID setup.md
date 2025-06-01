@@ -1,4 +1,4 @@
-#  HƯỚNG DẪN SETUP HỆ THỐNG ĐIỂM DANH RFID VỚI GOOGLE SHEETS
+#  HƯỚNG DẪN SETUP HỆ THỐNG GIÁM SÁT RA VÀO RFID VỚI GOOGLE SHEETS
 
 ##  Tổng quan hệ thống
 
