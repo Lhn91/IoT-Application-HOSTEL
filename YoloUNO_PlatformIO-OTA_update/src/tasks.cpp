@@ -8,6 +8,8 @@
 #include "sinric_task.h"
 #include "led_task.h"
 #include "fan_task.h"
+#include "rfid_task.h"
+#include "google_sheets_task.h"
 
 // Task handles
 TaskHandle_t wifiTaskHandle = NULL;
@@ -19,6 +21,8 @@ TaskHandle_t apModeTaskHandle = NULL;
 TaskHandle_t sinricTaskHandle = NULL;
 TaskHandle_t ledTaskHandle = NULL;
 TaskHandle_t fanTaskHandle = NULL;
+TaskHandle_t rfidTaskHandle = NULL;
+TaskHandle_t googleSheetsTaskHandle = NULL;
 
 // Semaphore cho các thao tác ThingsBoard
 SemaphoreHandle_t tbMutex = NULL;
@@ -43,4 +47,6 @@ void createAllTasks() {
   xTaskCreate(sinricTask, "SinricTask", SINRIC_TASK_STACK_SIZE, NULL, SINRIC_TASK_PRIORITY, &sinricTaskHandle);
   xTaskCreate(ledTask, "LEDTask", LED_TASK_STACK_SIZE, NULL, LED_TASK_PRIORITY, &ledTaskHandle);
   xTaskCreate(fanTask, "FanTask", FAN_TASK_STACK_SIZE, NULL, FAN_TASK_PRIORITY, &fanTaskHandle);
+  xTaskCreate(rfidTask, "RFIDTask", RFID_TASK_STACK_SIZE, NULL, RFID_TASK_PRIORITY, &rfidTaskHandle);
+  xTaskCreate(googleSheetsTask, "GoogleSheetsTask", GOOGLE_SHEETS_TASK_STACK_SIZE, NULL, GOOGLE_SHEETS_TASK_PRIORITY, &googleSheetsTaskHandle);
 } 

@@ -48,5 +48,6 @@ void processSharedAttributeUpdate(const JsonObjectConst &data);
 void processSharedAttributeRequest(const JsonObjectConst &data);
 void requestTimedOut();
 void mqttTask(void *parameter);
+void sendRfidData(const String &cardId);
 
 #endif /* MQTT_TASK_H */ 

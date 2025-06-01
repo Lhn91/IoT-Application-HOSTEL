@@ -12,6 +12,8 @@
 #include "sinric_task.h"
 #include "led_task.h"
 #include "fan_task.h"
+#include "rfid_task.h"
+#include "google_sheets_task.h"
 
 // Định nghĩa các hằng số
 // const int EEPROM_SIZE = 512;  // Now defined in main_constants.cpp
@@ -25,7 +27,7 @@ extern bool apMode;
 void setup() {
   // Khởi tạo kết nối serial
   Serial.begin(115200);
-  Serial.println("RTOTA2");
+  Serial.println("RTOTA4");
   delay(1000);
   
   // Khởi tạo EEPROM và tải thông tin WiFi
