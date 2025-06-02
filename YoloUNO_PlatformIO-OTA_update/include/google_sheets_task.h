@@ -18,21 +18,34 @@ struct AttendanceData {
   String time;
 };
 
-// Function declarations
+// Task function
 void googleSheetsTask(void *parameter);
+
+// Setup function
 void setupGoogleSheets();
-bool sendAttendanceToGoogleSheets(const AttendanceData &data);
+
+// Main attendance processing function
+void processRFIDForAttendance(const String &cardId);
+
+// Utility functions
+String getCurrentDateTime();
 String getUserNameFromCard(const String &cardId);
 bool isCardRegistered(const String &cardId);
-void processRFIDForAttendance(const String &cardId);
-String getCurrentDateTime();
 String determineAttendanceStatus(const String &cardId);
+void updateLastAttendanceStatus(const String &cardId, const String &status);
+
+// Google Sheets communication
+bool sendAttendanceToGoogleSheets(const AttendanceData &data);
 
 // Database sync functions
 bool syncDatabaseFromGoogleSheets();
-bool loadUserDatabaseFromSheets();
+bool tryGetMethod();
+bool tryPostMethod();
+bool parseDatabaseResponse(const String &response);
+bool followRedirectForJSON(const String &redirectUrl);
+bool parseJSONResponse(const String &response);
 void printCurrentDatabase();
 unsigned long getLastSyncTime();
-bool parseDatabaseResponse(const String &response);
+bool loadUserDatabaseFromSheets();
 
 #endif /* GOOGLE_SHEETS_TASK_H */ 
