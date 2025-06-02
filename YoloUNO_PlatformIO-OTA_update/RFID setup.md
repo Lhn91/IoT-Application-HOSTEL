@@ -1,4 +1,4 @@
-#  HƯỚNG DẪN SETUP HỆ THỐNG ĐIỂM DANH RFID VỚI GOOGLE SHEETS
+#  HƯỚNG DẪN SETUP HỆ THỐNG GIÁM SÁT RA VÀO RFID VỚI GOOGLE SHEETS
 
 ##  Tổng quan hệ thống
 
@@ -27,7 +27,7 @@ Hệ thống điểm danh RFID này sẽ:
 ### 1.1 Tạo Google Spreadsheet mới
 1. Truy cập [Google Sheets](https://sheets.google.com)
 2. Tạo spreadsheet mới với tên: `RFID_Attendance_System`
-3. Lưu lại URL của spreadsheet 1HdjRLNujHRQ3w0zjwyOWVY_yk0mYToVpzQB0sK4ZSuk
+3. Lưu lại URL của spreadsheet (Link này của tôi: 1HdjRLNujHRQ3w0zjwyOWVY_yk0mYToVpzQB0sK4ZSuk)
 
 ### 1.2 Tạo Google Apps Script
 1. Trong Google Sheets, vào **Extensions** → **Apps Script**
